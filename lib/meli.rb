@@ -9,21 +9,26 @@ require 'constants'
 
 class Meli
   attr_accessor :access_token, :refresh_token
-  attr_reader :secret, :app_id, :https
+  attr_reader :secret, :app_id, :https, :open_timeout, :read_timeout
 
   #constructor
-  def initialize(app_id = nil, secret = nil, access_token = nil, refresh_token = nil)
+  def initialize(app_id = nil, secret = nil, access_token = nil,
+                 refresh_token = nil, open_timeout: nil, read_timeout: nil)
     @access_token = access_token
     @refresh_token = refresh_token
     @app_id = app_id
     @secret = secret
+    @open_timeout = open_timeout
+    @read_timeout = read_timeout
     api_url = URI.parse API_ROOT_URL
     @https = Net::HTTP.new(api_url.host, api_url.port)
     @https.use_ssl = true
     @https.verify_mode = OpenSSL::SSL::VERIFY_PEER
     @https.ssl_version = :TLSv1
+    @https.open_timeout = open_timeout
+    @https.read_timeout = read_timeout
   end
-  
+
   def self.auth_url_country(iso_country_code)
     const_get "AUTH_URL_#{iso_country_code}"
   end
@@ -99,45 +104,61 @@ class Meli
 
 
   #REQUEST METHODS
-  def execute(req)
+  def execute(req, options = {})
     req['Accept'] = 'application/json'
     req['User-Agent'] = SDK_VERSION
     req['Content-Type'] = 'application/json'
-    response = @https.request(req)
+    @https.open_timeout = options[:open_timeout] || open_timeout
+    @https.read_timeout = options[:read_timeout] || read_timeout
+
+    @https.request(req)
+  ensure
+    @https.open_timeout = open_timeout
+    @https.read_timeout = read_timeout
   end
 
-  def get(path, params = {})
+  def get(path, params = {}, options = {})
     uri = make_path(path, params)
     req = Net::HTTP::Get.new("#{uri.path}?#{uri.query}")
-    execute req
+    execute req, options
   end
 
-  def post(path, body, params = {})
+  def post(path, body, params = {}, options = {})
     uri = make_path(path, params)
     req = Net::HTTP::Post.new("#{uri.path}?#{uri.query}")
     req.set_form_data(params)
     req.body = body.to_json unless body.nil?
-    execute req
+    execute req, options
   end
 
-  def put(path, body, params = {})
+  def put(path, body, params = {}, options = {})
     uri = make_path(path, params)
     req = Net::HTTP::Put.new("#{uri.path}?#{uri.query}")
     req.set_form_data(params)
     req.body = body.to_json unless body.nil?
-    execute req
+    execute req, options
   end
 
-  def delete(path, params = {})
+  def delete(path, params = {}, options = {})
     uri = make_path(path, params)
     req = Net::HTTP::Delete.new("#{uri.path}?#{uri.query}")
-    execute req
+    execute req, options
   end
 
-  def options(path, params = {})
+  def options(path, params = {}, options = {})
     uri = make_path(path, params)
     req = Net::HTTP::Options.new("#{uri.path}?#{uri.query}")
-    execute req
+    execute req, options
+  end
+
+  def open_timeout=(open_timeout)
+    @open_timeout = open_timeout
+    @https.open_timeout = open_timeout
+  end
+
+  def read_timeout=(read_timeout)
+    @read_timeout = read_timeout
+    @https.read_timeout = read_timeout
   end
 
 private

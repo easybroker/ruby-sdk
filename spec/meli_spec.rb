@@ -141,6 +141,48 @@ describe Meli do
     end
   end
 
+  describe "timeouts" do
+    it "should allow setting timeouts" do
+      @meli.open_timeout = 5
+      @meli.read_timeout = 5
+
+      expect(@meli.https.open_timeout).to eq 5
+      expect(@meli.https.read_timeout).to eq 5
+    end
+
+    context "when setting timeouts on instantiation" do
+      it "sets them on the http object" do
+        meli = Meli.new(open_timeout: 20, read_timeout: 20)
+
+        expect(meli.https.open_timeout).to eq 20
+        expect(meli.https.read_timeout).to eq 20
+      end
+    end
+
+    context "when setting timeouts per request" do
+      it "overrides instance timeouts" do
+        meli = Meli.new(open_timeout: 15, read_timeout: 15)
+
+        allow(meli.https).to receive(:open_timeout=).once.with(15)
+        allow(meli.https).to receive(:read_timeout=).once.with(15)
+        allow(meli.https).to receive(:open_timeout=).once.with(1)
+        allow(meli.https).to receive(:read_timeout=).once.with(1)
+
+        meli.get("items/test1", {}, open_timeout: 1, read_timeout: 1)
+      end
+
+      it "restores instance timeouts" do
+        meli = Meli.new(open_timeout: 15,
+                        read_timeout: 15)
+
+        meli.get("items/test1", {}, open_timeout: 1, read_timeout: 1)
+
+        expect(meli.https.open_timeout).to eq 15
+        expect(meli.https.read_timeout).to eq 15
+      end
+    end
+  end
+
   describe "Auth Url" do
     let(:callback) { "http://test.com/callback" }
     it "should return the correct default auth url (for Brazil)" do
@@ -149,7 +191,7 @@ describe Meli do
       expect(@meli.auth_url(callback)).to match @client_id
       expect(@meli.auth_url(callback)).to match "response_type"
     end
-    
+
     context "with two parameters" do
       let(:iso_country_code) { "AR" }
       it "should return the correct auth url according to the country" do
